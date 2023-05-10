@@ -2,7 +2,9 @@
 
 Creates a disk based lru that you can use in your apps.
 
-Usefull for caches.
+Useful for caches.
+
+Zero dependency package.
 
 [![Linting](../../actions/workflows/lint.yml/badge.svg)](../../actions/workflows/lint.yml)
 
