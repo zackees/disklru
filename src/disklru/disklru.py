@@ -2,6 +2,7 @@
 Disk-based LRU cache using SQLite.
 """
 
+import os
 import sqlite3
 from datetime import datetime
 
@@ -13,6 +14,7 @@ class DiskLRUCache:
 
     def __init__(self, db_path, max_size):
         """Initializes the cache."""
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self.conn = sqlite3.connect(db_path)
         self.closed = False
         self.cursor = self.conn.cursor()
