@@ -15,7 +15,8 @@ Usefull for caches.
 
 ```python
 LRU_CACHE_FILE = "cache.db"
-cache = DiskLRUCache(LRU_CACHE_FILE, 4)
+MAX_FILES = 4
+cache = DiskLRUCache(LRU_CACHE_FILE, MAX_FILES)
 cache.put("key", "value")
 assert cache.get("key1") == "val"
 cache.clear()
