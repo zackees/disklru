@@ -1,69 +1,79 @@
 """
-Implementation of a disk-based LRU cache using SQLAlchemy and SQLite.
+Disk-based LRU cache using SQLite.
 """
+
+import sqlite3
+from datetime import datetime
 
 # pylint: disable=line-too-long
 
-from datetime import datetime
-
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from disklru.models import Base, CacheItem  # type: ignore
-
 
 class DiskLRUCache:
-    """Disk-based LRU cache using SQLAlchemy and SQLite."""
+    """Disk-based LRU cache using SQLite."""
 
     def __init__(self, db_path, max_size):
         """Initializes the cache."""
-        self.engine = create_engine(f"sqlite:///{db_path}")
-        Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine)  # pylint: disable=invalid-name
+        self.conn = sqlite3.connect(db_path)
+        self.cursor = self.conn.cursor()
+        self.cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS cache (
+                key TEXT PRIMARY KEY,
+                timestamp INTEGER,
+                value TEXT
+            );
+        """
+        )
+        self.cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_timestamp ON cache (timestamp);"
+        )
+        self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_key ON cache (key);")
+        self.conn.commit()
         self.max_size = max_size
 
     def get(self, key):
         """Returns the value associated with the given key, or None if the key is not in the cache."""
-        with self.Session() as session:
-            item = session.query(CacheItem).filter_by(key=key).first()
-            if item:
-                item.timestamp = int(datetime.now().timestamp())
-                session.commit()
-                return item.value
-            return None
+        self.cursor.execute("SELECT value FROM cache WHERE key=?", (key,))
+        result = self.cursor.fetchone()
+        if result is not None:
+            self.cursor.execute(
+                "UPDATE cache SET timestamp=? WHERE key=?",
+                (int(datetime.now().timestamp()), key),
+            )
+            self.conn.commit()
+            return result[0]
+        return None
 
     def put(self, key, value):
         """Sets the value associated with the given key."""
-        with self.Session() as session:
-            if session.query(CacheItem).count() >= self.max_size:
-                # Delete the least recently used item
-                lru_item = (
-                    session.query(CacheItem).order_by(CacheItem.timestamp).first()
-                )
-                session.delete(lru_item)
-                session.commit()
-            timestamp = int(datetime.now().timestamp())
-            session.add(CacheItem(key=key, timestamp=timestamp, value=value))
-            session.commit()
+        self.cursor.execute("SELECT COUNT(*) FROM cache")
+        if self.cursor.fetchone()[0] >= self.max_size:
+            # Delete the least recently used item
+            self.cursor.execute("SELECT key FROM cache ORDER BY timestamp ASC LIMIT 1")
+            lru_key = self.cursor.fetchone()[0]
+            self.cursor.execute("DELETE FROM cache WHERE key=?", (lru_key,))
+            self.conn.commit()
+        timestamp = int(datetime.now().timestamp())
+        self.cursor.execute(
+            "INSERT OR REPLACE INTO cache (key, timestamp, value) VALUES (?, ?, ?)",
+            (key, timestamp, value),
+        )
+        self.conn.commit()
 
     def delete(self, key):
         """Deletes the given key from the cache."""
-        with self.Session() as session:
-            item = session.query(CacheItem).filter_by(key=key).first()
-            if item:
-                session.delete(item)
-                session.commit()
+        self.cursor.execute("DELETE FROM cache WHERE key=?", (key,))
+        self.conn.commit()
 
     def purge(self, timestamp):
         """Purges all elements less than the timestamp."""
-        with self.Session() as session:
-            session.query(CacheItem).filter(CacheItem.timestamp < timestamp).delete(
-                synchronize_session=False
-            )
-            session.commit()
+        self.cursor.execute("DELETE FROM cache WHERE timestamp<?", (timestamp,))
+        self.conn.commit()
 
     def clear(self):
         """Clears the cache."""
-        with self.Session() as session:
-            session.query(CacheItem).delete()
-            session.commit()
+        self.cursor.execute("DELETE FROM cache")
+        self.conn.commit()
+
+    def __del__(self):
+        self.conn.close()
