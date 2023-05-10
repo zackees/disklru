@@ -1,5 +1,8 @@
-# template-python-cmd
-A template for quickly making a python lib that has a command line program attached
+# disklru
+
+Creates a disk based lru that you can use in your apps.
+
+Usefull for caches.
 
 [![Linting](../../actions/workflows/lint.yml/badge.svg)](../../actions/workflows/lint.yml)
 
@@ -7,10 +10,16 @@ A template for quickly making a python lib that has a command line program attac
 [![Ubuntu_Tests](../../actions/workflows/push_ubuntu.yml/badge.svg)](../../actions/workflows/push_ubuntu.yml)
 [![Win_Tests](../../actions/workflows/push_win.yml/badge.svg)](../../actions/workflows/push_win.yml)
 
-Replace `template-python-cmd` and `template_python_cmd` with your command. Run tox until it's
-correct.
 
-To develop software, run `. ./activate.sh`
+# Usage
+
+```python
+LRU_CACHE_FILE = "cache.db"
+cache = DiskLRUCache(LRU_CACHE_FILE, 4)
+cache.put("key", "value")
+assert cache.get("key1") == "val"
+cache.clear()
+```
 
 # Windows
 
