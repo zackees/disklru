@@ -79,6 +79,11 @@ class DskLRUTester(unittest.TestCase):
         self.assertIsNotNone(self.cache.get("key4"))
         self.assertIsNotNone(self.cache.get("key5"))
 
+    def test_json(self) -> None:
+        """Tests that the cache can store and retrieve JSON objects."""
+        self.cache.put_json("key", {"foo": "bar"})
+        self.assertEqual(self.cache.get_json("key"), {"foo": "bar"})
+
 
 if __name__ == "__main__":
     unittest.main()
