@@ -19,10 +19,12 @@ class DskLRUTester(unittest.TestCase):
 
     def setUp(self):
         self.cache = DiskLRUCache(LRU_CACHE_FILE, 4)
-
-    def tearDown(self):
         # Clean up the database file after running each test
         self.cache.clear()
+
+    def tearDown(self):
+        if not self.cache.closed:
+            self.cache.close()
 
     def test_set_and_get(self):
         """Tests setting and getting a value."""
@@ -83,6 +85,11 @@ class DskLRUTester(unittest.TestCase):
         """Tests that the cache can store and retrieve JSON objects."""
         self.cache.put_json("key", {"foo": "bar"})
         self.assertEqual(self.cache.get_json("key"), {"foo": "bar"})
+
+    def test_close(self) -> None:
+        """Tests that the cache can be closed."""
+        self.cache.close()
+        self.assertTrue(self.cache.closed)
 
 
 if __name__ == "__main__":
