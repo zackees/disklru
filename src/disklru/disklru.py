@@ -5,6 +5,7 @@ Disk-based LRU cache using SQLite.
 import json
 import os
 import sqlite3
+import sys
 from datetime import datetime
 from typing import Any
 
@@ -17,6 +18,8 @@ class DiskLRUCache:
     def __init__(self, db_path: str, max_size: str) -> None:
         """Initializes the cache."""
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        if not os.path.exists(db_path) and sys.platform != "win32":
+            os.system(f'touch "{db_path}"')
         self.conn = sqlite3.connect(db_path)
         self.closed = False
         self.cursor = self.conn.cursor()
