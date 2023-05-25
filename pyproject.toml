@@ -13,7 +13,7 @@ dependencies = [
 ]
 # Change this with the version number bump.
 # Also make the change in zcmds/version.py
-version = "1.0.5"
+version = "1.0.6"
 
 [tool.ruff]
 line-length = 200
