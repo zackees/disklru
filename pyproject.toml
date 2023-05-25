@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "disklru"
 description = "Creates a python disk LRU / cache - great for apps that want to save data"
 requires-python = ">=3.7"
-keywords = ["template-python-cmd"]
+keywords = ["disk lru cache least recently used"]
 license = { text = "BSD 3-Clause License" }
 classifiers = ["Programming Language :: Python :: 3"]
 dependencies = [
