@@ -6,7 +6,7 @@ import json
 import os
 import sqlite3
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 # pylint: disable=line-too-long
 
@@ -36,7 +36,7 @@ class DiskLRUCache:
         self.conn.commit()
         self.max_size = max_size
 
-    def get(self, key: str) -> str | None:
+    def get(self, key: str) -> Optional[str]:
         """Returns the value associated with the given key, or None if the key is not in the cache."""
         assert not self.closed
         self.cursor.execute("SELECT value FROM cache WHERE key=?", (key,))
