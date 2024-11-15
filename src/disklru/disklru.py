@@ -61,8 +61,8 @@ class DiskLRUCache:
                     self._connections.items(), key=lambda x: x[1][2], reverse=True
                 )[self.MAX_CONNECTIONS - 1 :]
 
-                for old_thread_id, (old_conn, _, _) in oldest_threads:
-                    old_conn.close()
+                for old_thread_id, (_, _, _) in oldest_threads:
+                    # Just remove the reference, let the connection close naturally
                     del self._connections[old_thread_id]
 
             # Create new connection
@@ -235,9 +235,7 @@ class DiskLRUCache:
         return cursor.fetchone()[0]
 
     def close(self) -> None:
-        """Closes all database connections."""
+        """Closes the cache by removing connection references."""
         with self._connections_lock:
-            for thread_id, (conn, _, _) in self._connections.items():
-                conn.close()
             self._connections.clear()
         self._closed = True
