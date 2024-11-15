@@ -35,11 +35,17 @@ class DiskLRUCache:
     def get(self, key: str) -> str | None:
         """Returns the value associated with the given key, or None if the key is not in the cache."""
 
+    def get_bytes(self, key: str) -> bytes | None:
+        """Returns the bytes values associated with the given key"""
+
     def get_json(self, key: str) -> Any:
         """Returns the value associated with the given key, or None if the key is not in the cache."""
 
     def put(self, key: str, value: str) -> None:
         """Sets the value associated with the given key."""
+
+    def put_bytes(self, key: str, value: bytes) ->: None:
+        """Sets the byte value associated with the given key."""
 
     def put_json(self, key: str, val: Any) -> None:
         """Sets the value associated with the given key."""
@@ -76,3 +82,8 @@ This environment requires you to use `git-bash`.
 ### Linting
 
 Run `./lint.sh` to find linting errors using `pylint`, `flake8`, `mypy` and other tools.
+
+
+### Releases
+
+  * 2.0.0 - Overhaul - now allows multithreaded access, connection pool, get/put bytes. purge() now takes in a timestamp aware value for purging.
