@@ -25,7 +25,7 @@ class DiskLRUCache:
             CREATE TABLE IF NOT EXISTS cache (
                 key TEXT PRIMARY KEY,
                 timestamp INTEGER,
-                value TEXT
+                value BLOB
             );
         """
         )
@@ -47,7 +47,7 @@ class DiskLRUCache:
                 (int(datetime.now().timestamp()), key),
             )
             self.conn.commit()
-            return result[0]
+            return result[0].decode('utf-8')
         return None
 
     def get_json(self, key: str) -> Any:
@@ -70,7 +70,7 @@ class DiskLRUCache:
         timestamp = int(datetime.now().timestamp())
         self.cursor.execute(
             "INSERT OR REPLACE INTO cache (key, timestamp, value) VALUES (?, ?, ?)",
-            (key, timestamp, value),
+            (key, timestamp, value.encode('utf-8')),
         )
         self.conn.commit()
 
