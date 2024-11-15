@@ -33,7 +33,6 @@ class DiskLRUCache:
         self.db_path = db_path
         self.max_size = max_size
         self.max_connections = max_connections
-        self._initialized = False
         if ":memory:" not in db_path:
             os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
@@ -81,33 +80,31 @@ class DiskLRUCache:
             conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=60.0)
             cursor = conn.cursor()
 
-            if not self._initialized:
-                # Batch execute PRAGMA statements
-                cursor.executescript(
-                    """
-                    PRAGMA journal_mode=WAL;
-                    PRAGMA busy_timeout=60000;
-                    
-                    CREATE TABLE IF NOT EXISTS cache (
-                        key TEXT PRIMARY KEY,
-                        timestamp INTEGER,
-                        value BLOB
-                    );
-                    
-                    CREATE INDEX IF NOT EXISTS idx_timestamp ON cache (timestamp);
-                    CREATE INDEX IF NOT EXISTS idx_key ON cache (key);
-                    
-                    CREATE TABLE IF NOT EXISTS metadata (
-                        key TEXT PRIMARY KEY,
-                        value INTEGER
-                    );
-                    
-                    INSERT OR IGNORE INTO metadata (key, value) VALUES ('size', 0);
+            # Batch execute PRAGMA statements
+            cursor.executescript(
                 """
-                )
+                PRAGMA journal_mode=WAL;
+                PRAGMA busy_timeout=60000;
+                
+                CREATE TABLE IF NOT EXISTS cache (
+                    key TEXT PRIMARY KEY,
+                    timestamp INTEGER,
+                    value BLOB
+                );
+                
+                CREATE INDEX IF NOT EXISTS idx_timestamp ON cache (timestamp);
+                CREATE INDEX IF NOT EXISTS idx_key ON cache (key);
+                
+                CREATE TABLE IF NOT EXISTS metadata (
+                    key TEXT PRIMARY KEY,
+                    value INTEGER
+                );
+                
+                INSERT OR IGNORE INTO metadata (key, value) VALUES ('size', 0);
+            """
+            )
 
-                conn.commit()
-                self._initialized = True
+            conn.commit()
 
             # Store in connection pool
             self._connections[thread_id] = (conn, cursor, current_time)
@@ -115,6 +112,24 @@ class DiskLRUCache:
 
     def get(self, key: str) -> Optional[str]:
         """Returns the value associated with the given key, or None if the key is not in the cache."""
+        if not isinstance(key, str):
+            raise TypeError("key must be str, not " + type(key).__name__)
+        result = self.get_bytes(key)
+        if result is not None:
+            return result.decode("utf-8")
+        return None
+
+    def get_json(self, key: str) -> Any:
+        """Returns the value associated with the given key, or None if the key is not in the cache."""
+        result = self.get(key)
+        if result is not None:
+            return json.loads(result)
+        return None
+
+    def get_bytes(self, key: str) -> Optional[bytes]:
+        """Returns the value associated with the given key as bytes, or None if the key is not in the cache."""
+        if not isinstance(key, str):
+            raise TypeError("key must be str, not " + type(key).__name__)
         conn, cursor = self._get_session()
         try:
             cursor.execute("SELECT value FROM cache WHERE key=?", (key,))
@@ -125,22 +140,19 @@ class DiskLRUCache:
                     (int(datetime.now(timezone.utc).timestamp()), key),
                 )
                 conn.commit()
-                return result[0].decode("utf-8")
+                return result[0]
             conn.commit()
             return None
         except:
             conn.rollback()
             raise
 
-    def get_json(self, key: str) -> Any:
-        """Returns the value associated with the given key, or None if the key is not in the cache."""
-        result = self.get(key)
-        if result is not None:
-            return json.loads(result)
-        return None
-
-    def put(self, key: str, value: str) -> None:
-        """Sets the value associated with the given key."""
+    def put_bytes(self, key: str, value: bytes) -> None:
+        """Sets the value associated with the given key as raw bytes."""
+        if not isinstance(key, str):
+            raise TypeError("key must be str, not " + type(key).__name__)
+        if not isinstance(value, bytes):
+            raise TypeError("value must be bytes, not " + type(value).__name__)
         conn, cursor = self._get_session()
         try:
             # Start transaction
@@ -165,7 +177,7 @@ class DiskLRUCache:
             timestamp = int(datetime.now(timezone.utc).timestamp())
             cursor.execute(
                 "INSERT OR REPLACE INTO cache (key, timestamp, value) VALUES (?, ?, ?)",
-                (key, timestamp, value.encode("utf-8")),
+                (key, timestamp, value),
             )
 
             # Increment size only if it's a new key
@@ -176,6 +188,14 @@ class DiskLRUCache:
         except:
             conn.rollback()
             raise
+
+    def put(self, key: str, value: str) -> None:
+        """Sets the value associated with the given key."""
+        if not isinstance(key, str):
+            raise TypeError("key must be str, not " + type(key).__name__)
+        if not isinstance(value, str):
+            raise TypeError("value must be str, not " + type(value).__name__)
+        self.put_bytes(key, value.encode("utf-8"))
 
     def put_json(self, key: str, val: Any) -> None:
         """Sets the value associated with the given key."""
