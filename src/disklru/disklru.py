@@ -7,7 +7,7 @@ import os
 import sqlite3
 import threading
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Dict, Optional, Tuple
 
 # pylint: disable=line-too-long
 
@@ -17,7 +17,7 @@ class DiskLRUCache:
 
     _local = threading.local()
     _closed: bool = False
-    _connections: dict[int, tuple[sqlite3.Connection, sqlite3.Cursor, float]] = {}
+    _connections: Dict[int, Tuple[sqlite3.Connection, sqlite3.Cursor, float]] = {}
     _connections_lock = threading.Lock()
     MAX_CONNECTIONS = 50
 
@@ -33,13 +33,21 @@ class DiskLRUCache:
         self.db_path = db_path
         self.max_size = max_size
         self.max_connections = max_connections
+        self._initialized = False
         if ":memory:" not in db_path:
             os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-    def _get_session(self) -> tuple[sqlite3.Connection, sqlite3.Cursor]:
+    def _get_session(self) -> Tuple[sqlite3.Connection, sqlite3.Cursor]:
         """Gets or creates a thread-specific database session with connection pooling."""
         thread_id = threading.get_ident()
         current_time = datetime.now(timezone.utc).timestamp()
+
+        # Fast path if the connection already exists
+        con = self._connections.get(thread_id)
+        if con is not None:
+            conn, cursor, _ = con
+            self._connections[thread_id] = (conn, cursor, current_time)
+            return conn, cursor
 
         # Fast path - check if connection exists without lock
         if thread_id in self._connections:
@@ -73,31 +81,33 @@ class DiskLRUCache:
             conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=60.0)
             cursor = conn.cursor()
 
-            # Batch execute PRAGMA statements
-            cursor.executescript(
+            if not self._initialized:
+                # Batch execute PRAGMA statements
+                cursor.executescript(
+                    """
+                    PRAGMA journal_mode=WAL;
+                    PRAGMA busy_timeout=60000;
+                    
+                    CREATE TABLE IF NOT EXISTS cache (
+                        key TEXT PRIMARY KEY,
+                        timestamp INTEGER,
+                        value BLOB
+                    );
+                    
+                    CREATE INDEX IF NOT EXISTS idx_timestamp ON cache (timestamp);
+                    CREATE INDEX IF NOT EXISTS idx_key ON cache (key);
+                    
+                    CREATE TABLE IF NOT EXISTS metadata (
+                        key TEXT PRIMARY KEY,
+                        value INTEGER
+                    );
+                    
+                    INSERT OR IGNORE INTO metadata (key, value) VALUES ('size', 0);
                 """
-                PRAGMA journal_mode=WAL;
-                PRAGMA busy_timeout=60000;
-                
-                CREATE TABLE IF NOT EXISTS cache (
-                    key TEXT PRIMARY KEY,
-                    timestamp INTEGER,
-                    value BLOB
-                );
-                
-                CREATE INDEX IF NOT EXISTS idx_timestamp ON cache (timestamp);
-                CREATE INDEX IF NOT EXISTS idx_key ON cache (key);
-                
-                CREATE TABLE IF NOT EXISTS metadata (
-                    key TEXT PRIMARY KEY,
-                    value INTEGER
-                );
-                
-                INSERT OR IGNORE INTO metadata (key, value) VALUES ('size', 0);
-            """
-            )
+                )
 
-            conn.commit()
+                conn.commit()
+                self._initialized = True
 
             # Store in connection pool
             self._connections[thread_id] = (conn, cursor, current_time)
