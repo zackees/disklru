@@ -135,9 +135,9 @@ class DskLRUTesterMultiThreaded(unittest.TestCase):
         for t in threads:
             t.join()
 
-        # Verify that cache size hasn't exceeded max_size
+        # Verify that cache size hasn't exceeded max_entries
         actual_size = self.cache.get_size()
-        self.assertLessEqual(actual_size, self.cache.max_size)
+        self.assertLessEqual(actual_size, self.cache.max_entries)
 
 
 if __name__ == "__main__":

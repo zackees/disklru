@@ -27,11 +27,11 @@ class DiskLRUCache:
         return self._closed
 
     def __init__(
-        self, db_path: str, max_size: int, max_connections: int = MAX_CONNECTIONS
+        self, db_path: str, max_entries: int, max_connections: int = MAX_CONNECTIONS
     ) -> None:
         """Initializes the cache."""
         self.db_path = db_path
-        self.max_size = max_size
+        self.max_entries = max_entries
         self.max_connections = max_connections
         if ":memory:" not in db_path:
             os.makedirs(os.path.dirname(db_path), exist_ok=True)
@@ -166,7 +166,7 @@ class DiskLRUCache:
             cursor.execute("SELECT value FROM metadata WHERE key='size'")
             current_size = cursor.fetchone()[0]
 
-            if not key_exists and current_size >= self.max_size:
+            if not key_exists and current_size >= self.max_entries:
                 # Delete the least recently used item
                 cursor.execute("SELECT key FROM cache ORDER BY timestamp ASC LIMIT 1")
                 lru_key = cursor.fetchone()[0]
