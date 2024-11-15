@@ -17,6 +17,9 @@ class DiskLRUCache:
 
     _local = threading.local()
     _closed: bool = False
+    _connections: dict[int, tuple[sqlite3.Connection, sqlite3.Cursor, float]] = {}
+    _connections_lock = threading.Lock()
+    MAX_CONNECTIONS = 50
 
     @property
     def closed(self) -> bool:
@@ -30,14 +33,33 @@ class DiskLRUCache:
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
     def _get_session(self) -> tuple[sqlite3.Connection, sqlite3.Cursor]:
-        """Gets or creates a thread-specific database session."""
-        if not hasattr(self._local, "session"):
+        """Gets or creates a thread-specific database session with connection pooling."""
+        thread_id = threading.get_ident()
+        current_time = datetime.now(timezone.utc).timestamp()
+
+        with self._connections_lock:
+            # Clean up old connections if we're at the limit
+            if len(self._connections) >= self.MAX_CONNECTIONS:
+                current_time = datetime.now(timezone.utc).timestamp()
+                # Sort by last access time and remove oldest connections
+                sorted_conns = sorted(self._connections.items(), key=lambda x: x[1][2])
+                while len(self._connections) >= self.MAX_CONNECTIONS:
+                    old_thread_id, (old_conn, old_cursor, _) = sorted_conns.pop(0)
+                    old_conn.close()
+                    del self._connections[old_thread_id]
+
+            # Get or create connection for current thread
+            if thread_id in self._connections:
+                conn, cursor, _ = self._connections[thread_id]
+                # Update last access time
+                self._connections[thread_id] = (conn, cursor, current_time)
+                return conn, cursor
+
+            # Create new connection
             conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=60.0)
             cursor = conn.cursor()
-            cursor.execute("PRAGMA journal_mode=WAL")  # Use Write-Ahead Logging
-            cursor.execute(
-                "PRAGMA busy_timeout=60000"  # Set busy timeout to 60 seconds
-            )
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA busy_timeout=60000")
 
             # Initialize schema
             cursor.executescript(
@@ -64,8 +86,9 @@ class DiskLRUCache:
             )
             conn.commit()
 
-            self._local.session = (conn, cursor)
-        return self._local.session
+            # Store in connection pool
+            self._connections[thread_id] = (conn, cursor, current_time)
+            return conn, cursor
 
     def get(self, key: str) -> Optional[str]:
         """Returns the value associated with the given key, or None if the key is not in the cache."""
@@ -204,8 +227,8 @@ class DiskLRUCache:
 
     def close(self) -> None:
         """Closes all database connections."""
-        if hasattr(self._local, "session"):
-            conn, _ = self._local.session
-            conn.close()
-            delattr(self._local, "session")
+        with self._connections_lock:
+            for thread_id, (conn, _, _) in self._connections.items():
+                conn.close()
+            self._connections.clear()
         self._closed = True
