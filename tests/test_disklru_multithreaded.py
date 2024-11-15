@@ -3,6 +3,8 @@ Unit test file.
 """
 
 import os
+import random
+import threading
 import unittest
 
 from disklru import DiskLRUCache
@@ -26,8 +28,6 @@ class DskLRUTesterMultiThreaded(unittest.TestCase):
 
     def test_multi_threaded_stress_test(self) -> None:
         """Test concurrent access from multiple threads."""
-        import random
-        import threading
 
         num_threads = 4
         operations_per_thread = 100
@@ -62,7 +62,6 @@ class DskLRUTesterMultiThreaded(unittest.TestCase):
 
     def test_concurrent_json_operations(self) -> None:
         """Test concurrent JSON operations from multiple threads."""
-        import threading
 
         num_threads = 4
         operations_per_thread = 50
