@@ -37,33 +37,44 @@ class DiskLRUCache:
         thread_id = threading.get_ident()
         current_time = datetime.now(timezone.utc).timestamp()
 
-        with self._connections_lock:
-            # Clean up old connections if we're at the limit
-            if len(self._connections) >= self.MAX_CONNECTIONS:
-                current_time = datetime.now(timezone.utc).timestamp()
-                # Sort by last access time and remove oldest connections
-                sorted_conns = sorted(self._connections.items(), key=lambda x: x[1][2])
-                while len(self._connections) >= self.MAX_CONNECTIONS:
-                    old_thread_id, (old_conn, old_cursor, _) = sorted_conns.pop(0)
-                    old_conn.close()
-                    del self._connections[old_thread_id]
+        # Fast path - check if connection exists without lock
+        if thread_id in self._connections:
+            conn, cursor, _ = self._connections[thread_id]
+            # Update last access time under lock
+            with self._connections_lock:
+                if thread_id in self._connections:  # Double-check pattern
+                    self._connections[thread_id] = (conn, cursor, current_time)
+                    return conn, cursor
 
-            # Get or create connection for current thread
+        # Slow path - need new connection
+        with self._connections_lock:
+            # Check again in case another thread created it
             if thread_id in self._connections:
                 conn, cursor, _ = self._connections[thread_id]
-                # Update last access time
                 self._connections[thread_id] = (conn, cursor, current_time)
                 return conn, cursor
+
+            # Clean up old connections if we're at the limit
+            if len(self._connections) >= self.MAX_CONNECTIONS:
+                # Get oldest connections without creating a full sorted copy
+                oldest_threads = sorted(
+                    self._connections.items(), key=lambda x: x[1][2], reverse=True
+                )[self.MAX_CONNECTIONS - 1 :]
+
+                for old_thread_id, (old_conn, _, _) in oldest_threads:
+                    old_conn.close()
+                    del self._connections[old_thread_id]
 
             # Create new connection
             conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=60.0)
             cursor = conn.cursor()
-            cursor.execute("PRAGMA journal_mode=WAL")
-            cursor.execute("PRAGMA busy_timeout=60000")
 
-            # Initialize schema
+            # Batch execute PRAGMA statements
             cursor.executescript(
                 """
+                PRAGMA journal_mode=WAL;
+                PRAGMA busy_timeout=60000;
+                
                 CREATE TABLE IF NOT EXISTS cache (
                     key TEXT PRIMARY KEY,
                     timestamp INTEGER,
@@ -77,13 +88,11 @@ class DiskLRUCache:
                     key TEXT PRIMARY KEY,
                     value INTEGER
                 );
-                """
+                
+                INSERT OR IGNORE INTO metadata (key, value) VALUES ('size', 0);
+            """
             )
 
-            # Initialize size counter if needed
-            cursor.execute(
-                "INSERT OR IGNORE INTO metadata (key, value) VALUES ('size', 0)"
-            )
             conn.commit()
 
             # Store in connection pool
