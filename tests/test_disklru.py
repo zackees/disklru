@@ -5,7 +5,7 @@ Unit test file.
 import os
 import time
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from disklru import DiskLRUCache
 
@@ -39,8 +39,8 @@ class DskLRUTester(unittest.TestCase):
 
     def test_purge(self):
         """Tests purging the cache."""
-        past_time = int((datetime.now() - timedelta(minutes=5)).timestamp())
-        future_time = int((datetime.now() + timedelta(minutes=5)).timestamp())
+        past_time = datetime.now(timezone.utc) - timedelta(minutes=5)
+        future_time = datetime.now(timezone.utc) + timedelta(minutes=5)
         self.cache.put("key1", "value1")
         self.cache.put("key2", "value2")
         self.cache.purge(future_time)
@@ -49,7 +49,7 @@ class DskLRUTester(unittest.TestCase):
         self.cache.put("key1", "value1")
         self.cache.put("key2", "value2")
         self.cache.purge(past_time)
-        self.assertIsNotNone(self.cache.get("key1"))  # this fails
+        self.assertIsNotNone(self.cache.get("key1"))
         self.assertIsNotNone(self.cache.get("key2"))
 
     def test_max_elements(self):
