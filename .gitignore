@@ -141,3 +141,4 @@ tests/test.db
 .aider*
 !.aider.conf.yml
 !.aiderignore
+uv.lock

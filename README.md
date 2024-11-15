@@ -63,10 +63,16 @@ class DiskLRUCache:
 
 # Development
 
+First install development dependencies:
+
+```bash
+pip install -e ".[dev]"
+```
+
 ### Windows
 
 This environment requires you to use `git-bash`.
 
 ### Linting
 
-Run `./lint.sh` to find linting errors using `pylint`, `flake8` and `mypy`.
+Run `./lint.sh` to find linting errors using `pylint`, `flake8`, `mypy` and other tools.

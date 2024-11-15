@@ -20,20 +20,30 @@ class DiskLRUCache:
         self.conn = sqlite3.connect(db_path)
         self.closed = False
         self.cursor = self.conn.cursor()
-        self.cursor.execute(
+        # Combine all creation statements into a single atomic transaction
+        self.cursor.executescript(
             """
+            BEGIN;
+            
             CREATE TABLE IF NOT EXISTS cache (
                 key TEXT PRIMARY KEY,
                 timestamp INTEGER,
                 value BLOB
             );
+            
+            CREATE INDEX IF NOT EXISTS idx_timestamp ON cache (timestamp);
+            CREATE INDEX IF NOT EXISTS idx_key ON cache (key);
+            
+            CREATE TABLE IF NOT EXISTS metadata (
+                key TEXT PRIMARY KEY,
+                value INTEGER
+            );
+            
+            INSERT OR IGNORE INTO metadata (key, value) VALUES ('size', 0);
+            
+            COMMIT;
         """
         )
-        self.cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_timestamp ON cache (timestamp);"
-        )
-        self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_key ON cache (key);")
-        self.conn.commit()
         self.max_size = max_size
 
     def get(self, key: str) -> Optional[str]:
@@ -44,10 +54,10 @@ class DiskLRUCache:
         if result is not None:
             self.cursor.execute(
                 "UPDATE cache SET timestamp=? WHERE key=?",
-                (int(datetime.now().timestamp()), key),
+                (int(datetime.utcnow().timestamp()), key),
             )
             self.conn.commit()
-            return result[0].decode('utf-8')
+            return result[0].decode("utf-8")
         return None
 
     def get_json(self, key: str) -> Any:
@@ -60,18 +70,36 @@ class DiskLRUCache:
     def put(self, key: str, value: str) -> None:
         """Sets the value associated with the given key."""
         assert not self.closed
-        self.cursor.execute("SELECT COUNT(*) FROM cache")
-        if self.cursor.fetchone()[0] >= self.max_size:
+
+        # Check if key already exists
+        self.cursor.execute("SELECT 1 FROM cache WHERE key=?", (key,))
+        key_exists = self.cursor.fetchone() is not None
+
+        # Get current size
+        self.cursor.execute("SELECT value FROM metadata WHERE key='size'")
+        current_size = self.cursor.fetchone()[0]
+
+        if not key_exists and current_size >= self.max_size:
             # Delete the least recently used item
             self.cursor.execute("SELECT key FROM cache ORDER BY timestamp ASC LIMIT 1")
             lru_key = self.cursor.fetchone()[0]
             self.cursor.execute("DELETE FROM cache WHERE key=?", (lru_key,))
-            self.conn.commit()
-        timestamp = int(datetime.now().timestamp())
+            self.cursor.execute(
+                "UPDATE metadata SET value = value - 1 WHERE key='size'"
+            )
+
+        timestamp = int(datetime.utcnow().timestamp())
         self.cursor.execute(
             "INSERT OR REPLACE INTO cache (key, timestamp, value) VALUES (?, ?, ?)",
-            (key, timestamp, value.encode('utf-8')),
+            (key, timestamp, value.encode("utf-8")),
         )
+
+        # Increment size only if it's a new key
+        if not key_exists:
+            self.cursor.execute(
+                "UPDATE metadata SET value = value + 1 WHERE key='size'"
+            )
+
         self.conn.commit()
 
     def put_json(self, key: str, val: Any) -> None:
@@ -81,19 +109,32 @@ class DiskLRUCache:
     def delete(self, key) -> None:
         """Deletes the given key from the cache."""
         assert not self.closed
-        self.cursor.execute("DELETE FROM cache WHERE key=?", (key,))
-        self.conn.commit()
+        self.cursor.execute("SELECT 1 FROM cache WHERE key=?", (key,))
+        if self.cursor.fetchone() is not None:
+            self.cursor.execute("DELETE FROM cache WHERE key=?", (key,))
+            self.cursor.execute(
+                "UPDATE metadata SET value = value - 1 WHERE key='size'"
+            )
+            self.conn.commit()
 
     def purge(self, timestamp) -> None:
         """Purges all elements less than the timestamp."""
         assert not self.closed
-        self.cursor.execute("DELETE FROM cache WHERE timestamp<?", (timestamp,))
+        self.cursor.execute(
+            "SELECT COUNT(*) FROM cache WHERE timestamp < ?", (timestamp,)
+        )
+        to_delete = self.cursor.fetchone()[0]
+        self.cursor.execute("DELETE FROM cache WHERE timestamp < ?", (timestamp,))
+        self.cursor.execute(
+            "UPDATE metadata SET value = value - ? WHERE key='size'", (to_delete,)
+        )
         self.conn.commit()
 
     def clear(self) -> None:
         """Clears the cache."""
         assert not self.closed
         self.cursor.execute("DELETE FROM cache")
+        self.cursor.execute("UPDATE metadata SET value = 0 WHERE key='size'")
         self.conn.commit()
 
     def __del__(self) -> None:

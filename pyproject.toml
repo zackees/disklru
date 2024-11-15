@@ -1,35 +1,24 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
+requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "disklru"
-description = "Creates a python disk LRU / cache - great for apps that want to save data"
-requires-python = ">=3.7"
-keywords = ["disk lru cache least recently used"]
-license = { text = "BSD 3-Clause License" }
-classifiers = ["Programming Language :: Python :: 3"]
-dependencies = [
-]
-# Change this with the version number bump.
-# Also make the change in zcmds/version.py
 version = "1.0.7"
+readme = "README.md"
+requires-python = ">=3.8"
 
-[tool.ruff]
-line-length = 200
-
-[tool.pylint."MESSAGES CONTROL"]
-good-names = [
-    "c",
-    "i",
-    "ok",
-    "id",
-    "e",
-    "f"
+[project.optional-dependencies]
+dev = [
+    "black",
+    "isort", 
+    "flake8",
+    "mypy",
+    "pylint",
+    "pytest",
+    "tox",
+    "ruff",
 ]
 
-[tool.isort]
-profile = "black"
-
-[tool.mypy]
-ignore_missing_imports = true
+[tool.setuptools]
+include-package-data = true
