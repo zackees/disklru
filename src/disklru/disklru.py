@@ -30,7 +30,8 @@ class DiskLRUCache:
         """Initializes the cache."""
         self.db_path = db_path
         self.max_size = max_size
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        if ":memory:" not in db_path:
+            os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
     def _get_session(self) -> tuple[sqlite3.Connection, sqlite3.Cursor]:
         """Gets or creates a thread-specific database session with connection pooling."""
