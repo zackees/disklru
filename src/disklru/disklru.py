@@ -26,10 +26,13 @@ class DiskLRUCache:
         """Returns True if the cache is closed."""
         return self._closed
 
-    def __init__(self, db_path: str, max_size: int) -> None:
+    def __init__(
+        self, db_path: str, max_size: int, max_connections: int = MAX_CONNECTIONS
+    ) -> None:
         """Initializes the cache."""
         self.db_path = db_path
         self.max_size = max_size
+        self.max_connections = max_connections
         if ":memory:" not in db_path:
             os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
@@ -56,11 +59,11 @@ class DiskLRUCache:
                 return conn, cursor
 
             # Clean up old connections if we're at the limit
-            if len(self._connections) >= self.MAX_CONNECTIONS:
+            if len(self._connections) >= self.max_connections:
                 # Get oldest connections without creating a full sorted copy
                 oldest_threads = sorted(
                     self._connections.items(), key=lambda x: x[1][2], reverse=True
-                )[self.MAX_CONNECTIONS - 1 :]
+                )[self.max_connections - 1 :]
 
                 for old_thread_id, (_, _, _) in oldest_threads:
                     # Just remove the reference, let the connection close naturally
