@@ -86,4 +86,5 @@ Run `./lint.sh` to find linting errors using `pylint`, `flake8`, `mypy` and othe
 
 ### Releases
 
+  * 2.0.1 - `max_size` is now `max_entries`
   * 2.0.0 - Overhaul - now allows multithreaded access, connection pool, get/put bytes. purge() now takes in a timestamp aware value for purging.
