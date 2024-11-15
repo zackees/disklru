@@ -17,14 +17,32 @@ LRU_CACHE_FILE = os.path.join(HERE, "test.db")
 class DskLRUTesterMultiThreaded(unittest.TestCase):
     """Main tester class."""
 
-    def setUp(self) -> None:
-        self.cache = DiskLRUCache(LRU_CACHE_FILE, 16)
-        # Clean up the database file after running each test
-        self.cache.clear()
+    @classmethod
+    def setUpClass(cls):
+        """Set up test configurations"""
+        cls.configs = [("file", LRU_CACHE_FILE), ("memory", ":memory:")]
 
-    def tearDown(self) -> None:
-        if not self.cache.closed:
-            self.cache.close()
+    def setUp(self) -> None:
+        # Run each test for both file and memory configurations
+        self._type_name = None
+
+    def run(self, result=None):
+        """Run tests for both configurations"""
+        original_method_name = self._testMethodName
+        original_method = getattr(self, original_method_name)
+
+        for db_type, db_path in self.configs:
+            self._type_name = db_type
+            self.cache = DiskLRUCache(db_path, 16)
+            self.cache.clear()
+
+            try:
+                original_method()
+            finally:
+                if not self.cache.closed:
+                    self.cache.close()
+
+        return None
 
     def test_multi_threaded_stress_test(self) -> None:
         """Test concurrent access from multiple threads."""
