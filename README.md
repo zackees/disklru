@@ -6,11 +6,11 @@ Creates a disk based lru (least recently used) cache, backed by sqlite, that you
 
 Zero dependency package. Only relies on the python standard lib. Cross platform tests.
 
-[![Linting](../../actions/workflows/lint.yml/badge.svg)](../../actions/workflows/lint.yml)
+[![Linting](https://github.com/zackees/disklru/actions/workflows/lint.yml/badge.svg)](https://github.com/zackees/disklru/actions/workflows/lint.yml)
 
-[![MacOS_Tests](../../actions/workflows/push_macos.yml/badge.svg)](../../actions/workflows/push_macos.yml)
-[![Ubuntu_Tests](../../actions/workflows/push_ubuntu.yml/badge.svg)](../../actions/workflows/push_ubuntu.yml)
-[![Win_Tests](../../actions/workflows/push_win.yml/badge.svg)](../../actions/workflows/push_win.yml)
+[![MacOS_Tests](https://github.com/zackees/disklru/actions/workflows/push_macos.yml/badge.svg)](https://github.com/zackees/disklru/actions/workflows/push_macos.yml)
+[![Ubuntu_Tests](https://github.com/zackees/disklru/actions/workflows/push_ubuntu.yml/badge.svg)](https://github.com/zackees/disklru/actions/workflows/push_ubuntu.yml)
+[![Win_Tests](https://github.com/zackees/disklru/actions/workflows/push_win.yml/badge.svg)](https://github.com/zackees/disklru/actions/workflows/push_win.yml)
 
 
 # Usage
