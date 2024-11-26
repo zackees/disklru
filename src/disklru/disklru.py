@@ -201,6 +201,18 @@ class DiskLRUCache:
         """Sets the value associated with the given key."""
         self.put(key, json.dumps(val))
 
+    def __contains__(self, key: str) -> bool:
+        """Implements 'in' operator to check if a key exists in the cache."""
+        if not isinstance(key, str):
+            raise TypeError("key must be str, not " + type(key).__name__)
+        conn, cursor = self._get_session()
+        try:
+            cursor.execute("SELECT 1 FROM cache WHERE key=?", (key,))
+            return cursor.fetchone() is not None
+        except:
+            conn.rollback()
+            raise
+
     def delete(self, key) -> None:
         """Deletes the given key from the cache."""
         conn, cursor = self._get_session()

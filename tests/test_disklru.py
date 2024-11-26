@@ -81,6 +81,11 @@ class DskLRUTester(unittest.TestCase):
         self.assertIsNotNone(self.cache.get("key4"))
         self.assertIsNotNone(self.cache.get("key5"))
 
+    def test_in_operator(self):
+        """Tests the 'in' operator."""
+        self.cache.put("key1", "value1")
+        self.assertTrue("key1" in self.cache)
+
     def test_json(self) -> None:
         """Tests that the cache can store and retrieve JSON objects."""
         self.cache.put_json("key", {"foo": "bar"})
