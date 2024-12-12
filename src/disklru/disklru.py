@@ -270,6 +270,90 @@ class DiskLRUCache:
             conn.rollback()
             raise
 
+    def compare_and_swap(
+        self, key: str, prev_val: Optional[str], new_val: Optional[str]
+    ) -> Tuple[bool, Optional[str]]:
+        if not isinstance(key, str):
+            raise TypeError("key must be str, not " + type(key).__name__)
+        if prev_val is not None and not isinstance(prev_val, str):
+            raise TypeError(
+                "prev_val must be str or None, not " + type(prev_val).__name__
+            )
+        if new_val is not None and not isinstance(new_val, str):
+            raise TypeError(
+                "new_val must be str or None, not " + type(new_val).__name__
+            )
+
+        conn, cursor = self._get_session()
+        try:
+            timestamp = int(datetime.now(timezone.utc).timestamp())
+
+            # Convert values to bytes for storage
+            prev_val_bytes = prev_val.encode("utf-8") if prev_val is not None else None
+            new_val_bytes = new_val.encode("utf-8") if new_val is not None else None
+
+            cursor.execute("BEGIN IMMEDIATE")
+
+            if new_val is None:
+                # Delete case
+                cursor.execute(
+                    """
+                    DELETE FROM cache
+                    WHERE key = ? AND (? IS NULL AND value IS NULL OR value = ?);
+                    """,
+                    (key, prev_val_bytes, prev_val_bytes),
+                )
+                if cursor.rowcount > 0:
+                    cursor.execute(
+                        """
+                        UPDATE metadata SET value = value - 1 WHERE key = 'size';
+                        """
+                    )
+            else:
+                # Insert or update case
+                cursor.execute(
+                    """
+                    INSERT INTO cache (key, timestamp, value)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(key) DO UPDATE SET
+                        timestamp = excluded.timestamp,
+                        value = excluded.value
+                    WHERE
+                        (cache.value = ?);
+                    """,
+                    (
+                        key,
+                        timestamp,
+                        new_val_bytes,
+                        prev_val_bytes,
+                    ),
+                )
+
+                # Update metadata if it was an insert
+                if cursor.rowcount > 0 and prev_val is None:
+                    cursor.execute(
+                        """
+                        UPDATE metadata SET value = value + 1 WHERE key = 'size';
+                        """
+                    )
+
+            conn.commit()
+            success = cursor.arraysize > 0
+            return_str: str | None = None
+            if not success:
+                # get the previous value
+                cursor.execute("SELECT value FROM cache WHERE key=?", (key,))
+                result = cursor.fetchone()
+                if result is not None:
+                    return_str = result[0].encode("utf-8")
+            return (
+                success,
+                return_str,
+            )  # Old value retrieval removed for compatibility
+        except:
+            conn.rollback()
+            raise
+
     def __del__(self) -> None:
         """Destructor."""
         self.close()
