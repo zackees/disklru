@@ -35,6 +35,9 @@ class DiskLRUCache:
     def get(self, key: str) -> str | None:
         """Returns the value associated with the given key, or None if the key is not in the cache."""
 
+    def compare_and_swap(self, key: str, prev_val: str, new_val: str) -> tuple[bool, str | None]:
+        """Performs compare and swap"""
+
     def get_bytes(self, key: str) -> bytes | None:
         """Returns the bytes values associated with the given key"""
 
@@ -86,6 +89,7 @@ Run `./lint.sh` to find linting errors using `pylint`, `flake8`, `mypy` and othe
 
 ### Releases
 
+  * 2.0.3 - Added `compare_and_swap()` for atomic swapping of strings.
   * 2.0.2 - __contains__ operator is now defined so that you can do "key" in disklur
   * 2.0.1 - `max_size` is now `max_entries`
   * 2.0.0 - Overhaul - now allows multithreaded access, connection pool, get/put bytes. purge() now takes in a timestamp aware value for purging.
