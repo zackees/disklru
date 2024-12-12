@@ -7,6 +7,7 @@ import os
 import sqlite3
 import threading
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 # pylint: disable=line-too-long
@@ -27,14 +28,17 @@ class DiskLRUCache:
         return self._closed
 
     def __init__(
-        self, db_path: str, max_entries: int, max_connections: int = MAX_CONNECTIONS
+        self,
+        db_path: str | Path,
+        max_entries: int,
+        max_connections: int = MAX_CONNECTIONS,
     ) -> None:
         """Initializes the cache."""
-        self.db_path = db_path
+        self.db_path = str(db_path)
         self.max_entries = max_entries
         self.max_connections = max_connections
-        if ":memory:" not in db_path:
-            os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        if ":memory:" not in str(self.db_path):
+            os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
 
     def _get_session(self) -> Tuple[sqlite3.Connection, sqlite3.Cursor]:
         """Gets or creates a thread-specific database session with connection pooling."""
